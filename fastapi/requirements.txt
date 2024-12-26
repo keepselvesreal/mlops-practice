@@ -1,0 +1,7 @@
+fastapi
+mlflow
+pandas 
+prophet 
+pydantic 
+uvicorn 
+fastapi-cache2

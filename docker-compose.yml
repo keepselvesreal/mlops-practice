@@ -1,0 +1,62 @@
+version: '3'
+
+services:
+  # MLflow 서버 + SQLite 메타스토어
+  mlflow-server:
+    build:
+      context: ./mlflow
+      dockerfile: Dockerfile
+    volumes:
+      - ./mlflow/mlflow:/mlflow
+      - ./mlflow/mlflow/artifacts:/mlflow/artifacts  # artifact store 위치
+    ports:
+      - "5000:5000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://mlflow-server:5000"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    networks:
+      - mlflow-network
+
+   # Training 서비스
+  training:
+    build:
+      context: ./training
+      dockerfile: Dockerfile
+    volumes:
+      - ./training/rossman_store_data:/rossman_store_data
+      - ./mlflow/mlflow/artifacts:/mlflow/artifacts  # 추가
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow-server:5000
+      - MLFLOW_ARTIFACT_ROOT=/mlflow/artifacts
+    depends_on:
+      mlflow-server:
+        condition: service_healthy
+    networks:
+      - mlflow-network
+
+  # FastAPI 서버
+  fastapi-server:
+    build:
+      context: ./fastapi
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./mlflow/mlflow/artifacts:/mlflow/artifacts  # 아티팩트 볼륨 마운트 추가
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow-server:5000
+      # - MLFLOW_ARTIFACT_ROOT=/mlflow/artifacts  # 환경변수 추가
+    depends_on:
+      mlflow-server:
+        condition: service_healthy
+      training:
+        condition: service_completed_successfully
+    networks:
+      - mlflow-network
+
+networks:
+  mlflow-network:
+    driver: bridge
