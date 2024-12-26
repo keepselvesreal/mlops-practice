@@ -1,16 +1,53 @@
 version: '3'
 
 services:
+  # MinIO 서버
+  minio:
+    image: minio/minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minio
+      - MINIO_ROOT_PASSWORD=minio123
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+    networks:
+      - mlflow-network
+
+  minio-init:
+    image: minio/mc
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      - MINIO_ROOT_USER=minio
+      - MINIO_ROOT_PASSWORD=minio123
+    entrypoint: >
+      /bin/sh -c "
+      sleep 10 &&
+      mc config host add myminio http://minio:9000 minio minio123 &&
+      mc mb myminio/mlflow || true
+      "
+    networks:
+      - mlflow-network
+  
   # MLflow 서버 + SQLite 메타스토어
   mlflow-server:
     build:
       context: ./mlflow
       dockerfile: Dockerfile
-    volumes:
-      - ./mlflow/mlflow:/mlflow
-      - ./mlflow/mlflow/artifacts:/mlflow/artifacts  # artifact store 위치
     ports:
       - "5000:5000"
+    environment:
+      - AWS_ACCESS_KEY_ID=minio
+      - AWS_SECRET_ACCESS_KEY=minio123
+      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
+      - MLFLOW_S3_IGNORE_TLS=true
     healthcheck:
       test: ["CMD", "curl", "-f", "http://mlflow-server:5000"]
       interval: 10s
@@ -27,10 +64,12 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./training/rossman_store_data:/rossman_store_data
-      - ./mlflow/mlflow/artifacts:/mlflow/artifacts  # 추가
     environment:
       - MLFLOW_TRACKING_URI=http://mlflow-server:5000
-      - MLFLOW_ARTIFACT_ROOT=/mlflow/artifacts
+      - AWS_ACCESS_KEY_ID=minio
+      - AWS_SECRET_ACCESS_KEY=minio123
+      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
+      - MLFLOW_S3_IGNORE_TLS=true
     depends_on:
       mlflow-server:
         condition: service_healthy
@@ -44,11 +83,12 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8080:8080"
-    volumes:
-      - ./mlflow/mlflow/artifacts:/mlflow/artifacts  # 아티팩트 볼륨 마운트 추가
     environment:
       - MLFLOW_TRACKING_URI=http://mlflow-server:5000
-      # - MLFLOW_ARTIFACT_ROOT=/mlflow/artifacts  # 환경변수 추가
+      - AWS_ACCESS_KEY_ID=minio
+      - AWS_SECRET_ACCESS_KEY=minio123
+      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
+      - MLFLOW_S3_IGNORE_TLS=true
     depends_on:
       mlflow-server:
         condition: service_healthy
