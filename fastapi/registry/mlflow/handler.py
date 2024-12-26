@@ -8,11 +8,11 @@ class MLFlowHandler:
     def __init__(self) -> None:
         # tracking_uri = "http://0.0.0.0:5001"
         tracking_uri = "http://mlflow-server:5000"
-        self.tracking_uri = tracking_uri
+        # self.tracking_uri = tracking_uri
         # self.artifact_root = "/mlflow/artifacts"
         
         self.client = MlflowClient(tracking_uri=tracking_uri)
-        mlflow.set_tracking_uri(tracking_uri)
+        # mlflow.set_tracking_uri(tracking_uri)
     
     def check_mlflow_health(self) -> None:
         try:

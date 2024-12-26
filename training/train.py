@@ -106,7 +106,7 @@ if __name__ == "__main__":
     
     # tracking_uri = "http://0.0.0.0:5001"
     tracking_uri = "http://mlflow-server:5000"
-    artifact_location = "/mlflow/artifacts"  # 추가
+    # artifact_location = "/mlflow/artifacts"  # 추가
     
     mlflow.set_tracking_uri(tracking_uri)
     # ts 추가 -----
